@@ -56,7 +56,8 @@
 <body>
     <div class="container">
         <h1 class="mb-2">ADADA Copyediting Helper</h1>
-        <p class="small-hint mb-4">原点は左下、単位はpt（1pt ≒ 0.3528mm）。プレビューは1ページ目のみ。</p>
+        <p class="small-hint mb-4">原点は左下、単位はpt（1pt ≒
+            0.3528mm）。プレビューは1ページ目のみ。プレビューと出力は一致するようにしていますが、保存した場合に微妙なずれが生じます。保存したPDFで最終確認をお願いします。</p>
 
         <div class="row g-4">
             <!-- 左：入力 -->
@@ -106,7 +107,7 @@
                     <div class="card-body">
                         <h5 class="card-title">3) テキスト（Times で描画）</h5>
                         <div class="mb-2">
-                            <label class="form-label">掲載雑誌名</label>
+                            <label class="form-label">受付採録日</label>
                             <input type="text" class="form-control upd" id="confText"
                                 value="Received February 25th, 2025 ; Accepted August 18th, 2025">
                         </div>
@@ -152,28 +153,25 @@
                         <h5 class="card-title">4) ページ番号（Times）</h5>
                         <div class="form-check form-switch mb-3">
                             <input class="form-check-input" type="checkbox" id="usePageNo">
-                            <label class="form-check-label" for="usePageNo">ページ番号を付与（開始〜終了を全ページに連番で）</label>
+                            <label class="form-check-label" for="usePageNo">ページ番号を付与（全ページに連番で）</label>
                         </div>
                         <div class="row g-2">
-                            <div class="col-4">
+                            <div class="col-6">
                                 <label class="form-label">開始番号</label>
-                                <input type="number" class="form-control" id="pageStart" value="1" min="0" step="1">
+                                <input type="number" class="form-control" id="pageStart" value="1" min="1" step="1">
                             </div>
-                            <div class="col-4">
-                                <label class="form-label">終了番号</label>
-                                <input type="number" class="form-control" id="pageEnd" value="10" min="0" step="1">
-                            </div>
-                            <div class="col-4">
+                            <div class="col-6">
                                 <label class="form-label">文字サイズ (pt)</label>
                                 <input type="number" class="form-control" id="pageSize" value="9" min="1">
                             </div>
                         </div>
-                        <div class="small-hint mt-2">1ページ目は開始番号、2ページ目は開始+1 … と順に入れます（最終ページは終了番号）。</div>
+                        <div class="small-hint mt-2">1ページ目は開始番号、2ページ目は開始+1 … と順に連番で付与されます。</div>
                     </div>
                 </div>
 
                 <div class="d-grid gap-2">
                     <button class="btn btn-primary btn-lg" id="generateBtn">PDFを生成して保存</button>
+                    <button class="btn btn-outline-info" id="shareBtn">設定を共有リンクでコピー</button>
                     <button class="btn btn-outline-secondary" id="resetBtn">入力をリセット</button>
                 </div>
 
@@ -181,7 +179,7 @@
                     <summary><strong>補足</strong></summary>
                     <div class="mono small-hint mt-2">
                         1pt ≒ 0.3528mm（例：10mm ≒ 28.35pt）<br />
-                        テキストYはベースライン基準。プレビューと出力は一致するようにしていますが、保存した場合に微妙なずれが生じます。保存したPDFで最終確認をお願いします。<br />
+                        テキストYはベースライン基準。<br />
                     </div>
                 </details>
             </div>
@@ -189,9 +187,11 @@
             <!-- 右：プレビュー -->
             <div class="col-12 col-lg-7">
                 <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title mb-2">プレビュー（1ページ目）</h5>
-                        <div class="preview-wrap" id="previewWrap">
+                    <div class="card-body" <h5 class="card-title mb-2">プレビュー（1ページ目）</h5>
+                        <div id="noPreviewMessage" class="text-center py-5 text-muted">
+                            <h4>PDFを選択して下さい</h4>
+                        </div>
+                        <div class="preview-wrap" id="previewWrap" style="display: none;">
                             <canvas id="pdfCanvas"></canvas>
                             <div id="overlay">
                                 <img id="overlayImg" class="drw" alt="" />
@@ -200,11 +200,16 @@
                                 <span id="overlayPg" class="drw"></span>
                             </div>
                         </div>
-                        <div class="small-hint mt-2">※ プレビューは1ページ目のみ。</div>
+                        <div class="small-hint mt-2" id="previewHint" style="display: none;">※ プレビューは1ページ目のみ。</div>
                     </div>
                 </div>
             </div>
         </div>
+        <hr>
+        <footer class="mt-4 text-center small text-muted">
+            &copy; 2025 Tetsuaki Baba, <a href="https://github.com/TetsuakiBaba/ADADACopyeditingHelper" target="_blank"
+                rel="noopener noreferrer">GitHub</a>
+        </footer>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
@@ -218,36 +223,109 @@
         const pdfCanvas = $('pdfCanvas'), overlay = $('overlay');
         const overlayImg = $('overlayImg'), overlayConf = $('overlayConf'), overlayCr = $('overlayCr'), overlayPg = $('overlayPg');
         const userImgInput = $('userImg');
-        const generateBtn = $('generateBtn'), resetBtn = $('resetBtn');
+        const generateBtn = $('generateBtn'), resetBtn = $('resetBtn'), shareBtn = $('shareBtn');
+        const noPreviewMessage = $('noPreviewMessage');
+        const previewWrap = $('previewWrap');
+        const previewHint = $('previewHint');
 
         const imgX = $('imgX'), imgY = $('imgY'), imgW = $('imgW'), lockAspect = $('lockAspect');
         const confText = $('confText'), confX = $('confX'), confY = $('confY'), confSize = $('confSize');
         const crText = $('crText'), crX = $('crX'), crY = $('crY'), crSize = $('crSize');
 
-        const usePageNo = $('usePageNo'), pageStart = $('pageStart'), pageEnd = $('pageEnd'), pageSize = $('pageSize');
+        const usePageNo = $('usePageNo'), pageStart = $('pageStart'), pageSize = $('pageSize');
 
         let srcPdfBytes = null;
         let firstPageSizePt = { width: 0, height: 0 };
         let scalePxPerPt = 1;
         let pngNatural = { w: 1, h: 1 };
         let userImgFile = null, userImgURL = null;
+        let isPdfLoaded = false;
 
         function setOverlayImageSrc(src) {
             overlayImg.onload = () => { pngNatural = { w: overlayImg.naturalWidth, h: overlayImg.naturalHeight }; renderOverlay(); };
             overlayImg.src = src;
         }
-        setOverlayImageSrc(LOGO_DEFAULT_SRC);
+
+        // 初期状態では画像を読み込まない
+        // setOverlayImageSrc(LOGO_DEFAULT_SRC);
+
+        // URLパラメータから設定を読み込む
+        function loadSettingsFromURL() {
+            const params = new URLSearchParams(window.location.search);
+
+            if (params.has('imgX')) imgX.value = params.get('imgX');
+            if (params.has('imgY')) imgY.value = params.get('imgY');
+            if (params.has('imgW')) imgW.value = params.get('imgW');
+            if (params.has('lockAspect')) lockAspect.checked = params.get('lockAspect') === 'true';
+
+            if (params.has('confText')) confText.value = decodeURIComponent(params.get('confText'));
+            if (params.has('confX')) confX.value = params.get('confX');
+            if (params.has('confY')) confY.value = params.get('confY');
+            if (params.has('confSize')) confSize.value = params.get('confSize');
+
+            if (params.has('crText')) crText.value = decodeURIComponent(params.get('crText'));
+            if (params.has('crX')) crX.value = params.get('crX');
+            if (params.has('crY')) crY.value = params.get('crY');
+            if (params.has('crSize')) crSize.value = params.get('crSize');
+
+            if (params.has('usePageNo')) usePageNo.checked = params.get('usePageNo') === 'true';
+            if (params.has('pageStart')) pageStart.value = params.get('pageStart');
+            if (params.has('pageSize')) pageSize.value = params.get('pageSize');
+        }
+
+        // 設定をURLパラメータに変換
+        function getSettingsAsURLParams() {
+            const params = new URLSearchParams();
+
+            params.set('imgX', imgX.value);
+            params.set('imgY', imgY.value);
+            params.set('imgW', imgW.value);
+            params.set('lockAspect', lockAspect.checked);
+
+            params.set('confText', encodeURIComponent(confText.value));
+            params.set('confX', confX.value);
+            params.set('confY', confY.value);
+            params.set('confSize', confSize.value);
+
+            params.set('crText', encodeURIComponent(crText.value));
+            params.set('crX', crX.value);
+            params.set('crY', crY.value);
+            params.set('crSize', crSize.value);
+
+            params.set('usePageNo', usePageNo.checked);
+            params.set('pageStart', pageStart.value);
+            params.set('pageSize', pageSize.value);
+
+            return params.toString();
+        }
+
+        // 初期化時にURLパラメータから設定を読み込む
+        loadSettingsFromURL();
 
         userImgInput.addEventListener('change', () => {
             userImgFile = userImgInput.files && userImgInput.files[0] ? userImgInput.files[0] : null;
             if (userImgURL) { URL.revokeObjectURL(userImgURL); userImgURL = null; }
-            if (userImgFile) { userImgURL = URL.createObjectURL(userImgFile); setOverlayImageSrc(userImgURL); }
-            else { setOverlayImageSrc(LOGO_DEFAULT_SRC); }
+            if (userImgFile) {
+                userImgURL = URL.createObjectURL(userImgFile);
+                if (isPdfLoaded) setOverlayImageSrc(userImgURL);
+            } else {
+                if (isPdfLoaded) setOverlayImageSrc(LOGO_DEFAULT_SRC);
+            }
         });
 
         pdfFile.addEventListener('change', async () => {
             pageInfo.textContent = '';
-            const file = pdfFile.files?.[0]; if (!file) return;
+            const file = pdfFile.files?.[0];
+            if (!file) {
+                // PDFファイルがクリアされた場合
+                isPdfLoaded = false;
+                srcPdfBytes = null;
+                noPreviewMessage.style.display = 'block';
+                previewWrap.style.display = 'none';
+                previewHint.style.display = 'none';
+                return;
+            }
+
             srcPdfBytes = new Uint8Array(await file.arrayBuffer());
 
             try {
@@ -259,10 +337,24 @@
             } catch (e) { console.error(e); pageInfo.textContent = 'PDFの読み取りに失敗しました。'; return; }
 
             await renderPdfFirstPageToCanvas(srcPdfBytes, firstPageSizePt);
+
+            // PDFが読み込まれた後に画像も読み込む
+            isPdfLoaded = true;
+            if (userImgFile) {
+                setOverlayImageSrc(userImgURL);
+            } else {
+                setOverlayImageSrc(LOGO_DEFAULT_SRC);
+            }
+
+            // プレビューを表示
+            noPreviewMessage.style.display = 'none';
+            previewWrap.style.display = 'inline-block';
+            previewHint.style.display = 'block';
+
             renderOverlay();
         });
 
-        document.querySelectorAll('.upd, #usePageNo, #pageStart, #pageEnd, #pageSize').forEach(el => {
+        document.querySelectorAll('.upd, #usePageNo, #pageStart, #pageSize').forEach(el => {
             el.addEventListener('input', renderOverlay);
             el.addEventListener('change', renderOverlay);
         });
@@ -285,8 +377,7 @@
             const t2s = Math.max(1, +crSize.value || 1);
 
             const addPageNo = !!usePageNo.checked;
-            const pStart = Math.floor(+pageStart.value || 0);
-            const pEnd = Math.floor(+pageEnd.value || 0);
+            const pStart = Math.floor(+pageStart.value || 1);
             const pSize = Math.max(1, +pageSize.value || 9);
             const bottomMargin = 25;
 
@@ -311,12 +402,10 @@
                     if (t2.trim()) page.drawText(t2, { x: t2x, y: t2y, size: t2s, font: fontTimes, color: PDFLib.rgb(0, 0, 0) });
                 }
 
-                // ページ番号：開始→終了を全ページに連番で付与（昇順/降順どちらも対応）
+                // ページ番号：開始番号から全ページに連番で付与
                 if (addPageNo) {
-                    const step = (pEnd >= pStart) ? 1 : -1;
                     for (let i = 0; i < pageCount; i++) {
-                        const num = pStart + i * step;
-                        if ((step > 0 && num > pEnd) || (step < 0 && num < pEnd)) break; // 範囲外になったら終了
+                        const num = pStart + i;
                         const page = pdfDoc.getPage(i);
                         const { width: pw } = page.getSize();
                         const text = String(num);
@@ -345,7 +434,14 @@
             userImgInput.value = "";
             if (userImgURL) { URL.revokeObjectURL(userImgURL); userImgURL = null; }
             userImgFile = null;
-            setOverlayImageSrc(LOGO_DEFAULT_SRC);
+            isPdfLoaded = false;
+            srcPdfBytes = null;
+
+            // プレビューをリセット
+            noPreviewMessage.style.display = 'block';
+            previewWrap.style.display = 'none';
+            previewHint.style.display = 'none';
+            pageInfo.textContent = '';
 
             imgX.value = 471; imgY.value = 777; imgW.value = 74; lockAspect.checked = true;
 
@@ -356,9 +452,32 @@
             crX.value = 50; crY.value = 62; crSize.value = 7;
 
             usePageNo.checked = false;
-            pageStart.value = 1; pageEnd.value = 10; pageSize.value = 9;
+            pageStart.value = 1; pageSize.value = 9;
+        });
 
-            renderOverlay();
+        shareBtn.addEventListener('click', async () => {
+            const params = getSettingsAsURLParams();
+            const baseUrl = window.location.origin + window.location.pathname;
+            const shareUrl = params ? `${baseUrl}?${params}` : baseUrl;
+
+            try {
+                await navigator.clipboard.writeText(shareUrl);
+                // ボタンのテキストを一時的に変更してフィードバック
+                const originalText = shareBtn.textContent;
+                shareBtn.textContent = 'コピー完了！';
+                shareBtn.classList.remove('btn-outline-info');
+                shareBtn.classList.add('btn-success');
+
+                setTimeout(() => {
+                    shareBtn.textContent = originalText;
+                    shareBtn.classList.remove('btn-success');
+                    shareBtn.classList.add('btn-outline-info');
+                }, 2000);
+            } catch (err) {
+                console.error('クリップボードへのコピーに失敗:', err);
+                // フォールバック: プロンプトでURLを表示
+                prompt('以下のURLをコピーしてください:', shareUrl);
+            }
         });
 
         async function renderPdfFirstPageToCanvas(bytes, pageSizePt) {
@@ -382,7 +501,7 @@
         }
 
         function renderOverlay() {
-            if (!firstPageSizePt.width || !pdfCanvas.width) return;
+            if (!isPdfLoaded || !firstPageSizePt.width || !pdfCanvas.width) return;
             const Hpx = pdfCanvas.height;
             const s = scalePxPerPt;
 
@@ -425,7 +544,7 @@
 
             // プレビューは1ページ目の開始番号のみ
             const addPageNo = !!usePageNo.checked;
-            const pStart = Math.floor(+pageStart.value || 0);
+            const pStart = Math.floor(+pageStart.value || 1);
             const pSize = Math.max(1, +pageSize.value || 9);
             const pSizePx = pSize * s;
 
